@@ -1,140 +1,229 @@
-AI-Financial-Report-Analyzer
-/README.md
+# AI Financial Report Analyzer
 
-Preview
+An AI-powered **Financial Report Analyzer** that ingests financial documents such as **10-K filings and earnings transcripts**, converts them into semantic embeddings, indexes them with **FAISS**, and answers natural-language questions using a **Retrieval-Augmented Generation (RAG)** pipeline.
 
-Code
+The system allows users to upload financial reports and interact with them through natural language queries while showing the relevant evidence used to generate the answer.
 
-Blame
-160 lines (93 loc) · 3.25 KB
-AI Financial Report Analyzer
+---
 
-An AI-powered Financial Report Analyzer that ingests financial documents such as 10-K filings and earnings transcripts, converts them into semantic embeddings, indexes them with FAISS, and answers natural-language questions using a Retrieval-Augmented Generation (RAG) pipeline.
+# Features
 
-Features
+- Upload **PDF or TXT financial reports**
+- Extract text from financial documents
+- Split documents into **semantic chunks**
+- Generate embeddings using **SentenceTransformers**
+- Store and search vectors using **FAISS**
+- Ask **natural-language questions**
+- Generate grounded answers using **OpenAI**
+- Display retrieved evidence for transparency
 
-Upload PDF or TXT financial reports
+---
 
-Extract and chunk document text
+# Tech Stack
 
-Generate semantic embeddings using SentenceTransformers
+- **Python**
+- **Streamlit** – user interface
+- **PyMuPDF** – PDF text extraction
+- **SentenceTransformers** – text embeddings
+- **FAISS** – vector similarity search
+- **OpenAI API** – answer generation
 
-Store and search embeddings with FAISS
+---
 
-Ask natural-language questions about the report
+# Project Structure
 
-Generate grounded answers using OpenAI
+```bash
+fin-report-analyzer/
+│
+├── app/
+│   ├── frontend.py        # Streamlit interface
+│   ├── ingest.py          # PDF/TXT text extraction
+│   ├── chunk.py           # Document chunking
+│   ├── embed_index.py     # Embedding generation + FAISS index
+│   ├── retrieve.py        # Semantic search
+│   ├── prompts.py         # Prompt templates
+│   └── generate.py        # LLM answer generation
+│
+├── docs/                  # Sample financial documents
+├── models/                # Cached embeddings / indexes
+├── requirements.txt
+└── README.md
+```
 
-Display retrieved evidence for transparency
+---
 
-Tech Stack
+# Setup Instructions
 
-Python
+## 1. Clone the Repository
 
-Streamlit
+```bash
+git clone https://github.com/YOUR_USERNAME/AI-Financial-Report-Analyzer.git
+cd AI-Financial-Report-Analyzer
+```
 
-PyMuPDF
+---
 
-SentenceTransformers
+## 2. Create a Virtual Environment
 
-FAISS
+```bash
+python -m venv venv
+```
 
-OpenAI API
+---
 
-Project Structure fin-report-analyzer/ │ ├── app/ │ ├── frontend.py │ ├── ingest.py │ ├── chunk.py │ ├── embed_index.py │ ├── retrieve.py │ ├── prompts.py │ └── generate.py │ ├── docs/ ├── models/ ├── requirements.txt └── README.md
+## 3. Activate the Virtual Environment
 
-Setup Instructions
+### Mac / Linux
 
-Clone the repository git clone https://github.com/your-username/fin-report-analyzer.git cd fin-report-analyzer
+```bash
+source venv/bin/activate
+```
 
-Create a virtual environment python -m venv venv
+### Windows
 
-Activate the virtual environment Mac / Linux source venv/bin/activate
+```bash
+venv\Scripts\activate
+```
 
-Windows venv\Scripts\activate
+---
 
-Install dependencies pip install -r requirements.txt
-If you do not have a requirements.txt yet, install manually:
+## 4. Install Dependencies
 
+If you have a `requirements.txt` file:
+
+```bash
+pip install -r requirements.txt
+```
+
+Or install manually:
+
+```bash
 pip install streamlit pymupdf sentence-transformers faiss-cpu numpy openai
+```
 
-Set your OpenAI API key Mac / Linux export OPENAI_API_KEY="your_api_key_here"
-Windows PowerShell setx OPENAI_API_KEY "your_api_key_here"
+---
 
-Then restart the terminal if needed.
+## 5. Set Your OpenAI API Key
 
-Run the application streamlit run app/frontend.py
+### Mac / Linux
 
-Open the app in your browser
+```bash
+export OPENAI_API_KEY="your_api_key_here"
+```
+
+### Windows PowerShell
+
+```powershell
+setx OPENAI_API_KEY "your_api_key_here"
+```
+
+Restart the terminal if necessary.
+
+---
+
+## 6. Run the Application
+
+```bash
+streamlit run app/frontend.py
+```
+
+---
+
+## 7. Open the App
 
 Streamlit will usually open automatically. If not, go to:
 
+```
 http://localhost:8501
+```
 
-How to Use
+---
 
-Upload a PDF or TXT financial report
+# How to Use
 
-Click Index Document
+1. Upload a **PDF or TXT financial report**
+2. Click **Index Document**
+3. Enter a question about the report
+4. View the generated answer and supporting evidence
 
-Enter a question such as:
+---
 
-What was total revenue in 2024?
+# Example Questions
 
-What was the YoY revenue growth?
+- What was total revenue for fiscal year 2024?
+- What was the year-over-year revenue growth?
+- What are the main risk factors mentioned?
+- What was the net income in 2024?
+- What business segments does the company operate in?
+- What was operating cash flow?
 
-What are the major risk factors?
+---
 
-How much was invested in R&D?
+# How It Works
 
-Review the generated answer and retrieved evidence
+The application follows a **Retrieval-Augmented Generation (RAG)** architecture.
 
-Example Questions
+### 1. Document Ingestion
+Financial reports are uploaded and text is extracted from PDF or TXT files.
 
-What was total revenue for fiscal year 2024?
+### 2. Chunking
+Documents are split into overlapping chunks to preserve context.
 
-What were the top 3 risk factors?
+### 3. Embedding Generation
+Each chunk is converted into a semantic vector using a **SentenceTransformer model**.
 
-What was net income in 2024?
+### 4. Vector Indexing
+Embeddings are stored in a **FAISS vector database** for fast similarity search.
 
-What were the business segments?
+### 5. Retrieval
+When a user asks a question, the system retrieves the most relevant chunks using vector similarity.
 
-What was operating cash flow?
+### 6. Answer Generation
+The retrieved chunks are passed to an **LLM (OpenAI)** which generates a grounded response using the document context.
 
-How It Works
+---
 
-Document ingestion: Extracts text from PDF or TXT files
+# Example Architecture
 
-Chunking: Splits the text into overlapping chunks
+```
+Financial Document
+       ↓
+Text Extraction
+       ↓
+Chunking
+       ↓
+Embeddings (SentenceTransformers)
+       ↓
+Vector Index (FAISS)
+       ↓
+User Question
+       ↓
+Semantic Retrieval
+       ↓
+LLM Answer Generation
+```
 
-Embedding generation: Converts chunks into vector embeddings
+---
 
-FAISS indexing: Stores embeddings for similarity search
+# Notes
 
-Retrieval: Finds the most relevant chunks for a user query
+- If the **OPENAI_API_KEY** is not set, the system can still retrieve relevant document sections but will not generate LLM answers.
+- Large financial documents may take longer to index.
+- If `faiss-cpu` installation fails, use Python **3.10 or 3.11**.
 
-Answer generation: Uses OpenAI to generate a grounded response based on retrieved context
+---
 
-Notes
+# Future Improvements
 
-If OPENAI_API_KEY is not set, the app can still retrieve relevant evidence chunks, but answer generation will be limited.
+- Multi-document comparison
+- Improved citation formatting
+- Financial KPI extraction
+- Complaint/theme clustering
+- Interactive dashboards
+- Deployment to **Hugging Face Spaces** or **Streamlit Cloud**
 
-Large PDFs may take longer to index depending on system resources.
+---
 
-FAISS installation may vary by environment. If faiss-cpu fails, try using a compatible Python version such as 3.10 or 3.11.
+# License
 
-Future Improvements
-
-Multi-document comparison
-
-Better citation formatting
-
-Complaint/theme clustering
-
-Dashboard-style financial KPI extraction
-
-Deployment to Hugging Face Spaces or Streamlit Cloud
-
-License
-
-This project is for educational and portfolio use.
+This project is intended for **educational and portfolio use**.
