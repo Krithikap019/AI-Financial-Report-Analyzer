@@ -1,3 +1,12 @@
+AI-Financial-Report-Analyzer
+/README.md
+
+Preview
+
+Code
+
+Blame
+160 lines (93 loc) · 3.25 KB
 AI Financial Report Analyzer
 
 An AI-powered Financial Report Analyzer that ingests financial documents such as 10-K filings and earnings transcripts, converts them into semantic embeddings, indexes them with FAISS, and answers natural-language questions using a Retrieval-Augmented Generation (RAG) pipeline.
@@ -32,60 +41,31 @@ FAISS
 
 OpenAI API
 
-Project Structure
-fin-report-analyzer/
-│
-├── app/
-│   ├── frontend.py
-│   ├── ingest.py
-│   ├── chunk.py
-│   ├── embed_index.py
-│   ├── retrieve.py
-│   ├── prompts.py
-│   └── generate.py
-│
-├── docs/
-├── models/
-├── requirements.txt
-└── README.md
+Project Structure fin-report-analyzer/ │ ├── app/ │ ├── frontend.py │ ├── ingest.py │ ├── chunk.py │ ├── embed_index.py │ ├── retrieve.py │ ├── prompts.py │ └── generate.py │ ├── docs/ ├── models/ ├── requirements.txt └── README.md
 
 Setup Instructions
-1. Clone the repository
-git clone https://github.com/your-username/fin-report-analyzer.git
-cd fin-report-analyzer
 
-2. Create a virtual environment
-python -m venv venv
+Clone the repository git clone https://github.com/your-username/fin-report-analyzer.git cd fin-report-analyzer
 
-3. Activate the virtual environment
-Mac / Linux
-source venv/bin/activate
+Create a virtual environment python -m venv venv
 
-Windows
-venv\Scripts\activate
+Activate the virtual environment Mac / Linux source venv/bin/activate
 
-4. Install dependencies
-pip install -r requirements.txt
+Windows venv\Scripts\activate
 
-
+Install dependencies pip install -r requirements.txt
 If you do not have a requirements.txt yet, install manually:
 
 pip install streamlit pymupdf sentence-transformers faiss-cpu numpy openai
 
-5. Set your OpenAI API key
-Mac / Linux
-export OPENAI_API_KEY="your_api_key_here"
-
-Windows PowerShell
-setx OPENAI_API_KEY "your_api_key_here"
-
+Set your OpenAI API key Mac / Linux export OPENAI_API_KEY="your_api_key_here"
+Windows PowerShell setx OPENAI_API_KEY "your_api_key_here"
 
 Then restart the terminal if needed.
 
-6. Run the application
-streamlit run app/frontend.py
+Run the application streamlit run app/frontend.py
 
-7. Open the app in your browser
+Open the app in your browser
 
 Streamlit will usually open automatically. If not, go to:
 
