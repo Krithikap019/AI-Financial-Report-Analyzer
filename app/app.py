@@ -1,235 +1,209 @@
-# # app.py
-# # Single-file Streamlit AI Financial Report Analyzer (RAG MVP)
-# # - Upload PDF/TXT
-# # - Extract text (PDF page-aware)
-# # - Chunk + embed (sentence-transformers)
-# # - FAISS retrieval
-# # - If OPENAI_API_KEY is set: generates an answer with citations
-# # - If not set: shows the best matching evidence chunks (still useful)
+import os
+import tempfile
+import streamlit as st
+from ingest import extract_pdf_pages, extract_txt
+from chunk import chunk_pages
+from embed_index import load_embedder, embed_texts, build_faiss_index
+from retrieve import retrieve
+from generate import generate_answer, generate_summary, generate_sentiment
 
-# import os
-# import re
-# import tempfile
-# from dataclasses import dataclass
-# from typing import List, Dict, Any, Tuple
+st.set_page_config(
+    page_title="AI Financial Report Analyzer",
+    page_icon="📊",
+    layout="wide"
+)
 
-# import streamlit as st
+st.markdown("""
+<style>
+    .main { padding: 1rem 2rem; }
+    .stButton > button {
+        background-color: #0a7c52;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        padding: 0.5rem 1.2rem;
+        font-weight: 600;
+    }
+    .stButton > button:hover { background-color: #064d33; }
+    .chat-message { padding: 1rem; border-radius: 8px; margin: 0.5rem 0; }
+    .user-message { background: #edf5f1; border-left: 3px solid #0a7c52; }
+    .assistant-message { background: #f8f9fa; border-left: 3px solid #6c757d; }
+    .source-badge { background: #d4ede5; color: #064d33; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; margin: 2px; display: inline-block; }
+    .stat-card { background: #edf5f1; border-radius: 8px; padding: 1rem; text-align: center; border: 1px solid rgba(10,124,82,0.15); }
+    .stat-num { font-size: 1.8rem; font-weight: 700; color: #0a7c52; }
+    .stat-label { font-size: 0.75rem; color: #3a5a4a; font-weight: 600; }
+</style>
+""", unsafe_allow_html=True)
 
-# # --- Optional / graceful imports ---
-# try:
-#     import fitz  # PyMuPDF
-# except Exception as e:
-#     fitz = None
+QUICK_QUESTIONS = [
+    "What was the total revenue?",
+    "What are the key risk factors?",
+    "What is the net income?",
+    "What are the main business segments?",
+    "What is the revenue growth year over year?",
+    "What does management say about future outlook?",
+    "What are the operating expenses?",
+    "What is the cash flow from operations?",
+]
 
-# try:
-#     import faiss
-# except Exception as e:
-#     faiss = None
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+if "indexed" not in st.session_state:
+    st.session_state.indexed = False
+if "doc_stats" not in st.session_state:
+    st.session_state.doc_stats = {}
+if "summary" not in st.session_state:
+    st.session_state.summary = None
+if "sentiment" not in st.session_state:
+    st.session_state.sentiment = None
 
-# try:
-#     import numpy as np
-# except Exception as e:
-#     np = None
+with st.sidebar:
+    st.markdown("## 📊 Financial Analyzer")
+    st.markdown("---")
+    uploaded = st.file_uploader("Upload 10-K / Transcript", type=["pdf", "txt"])
 
-# try:
-#     from sentence_transformers import SentenceTransformer
-# except Exception as e:
-#     SentenceTransformer = None
+    if uploaded and st.button("🔍 Index Document", use_container_width=True):
+        suffix = "." + uploaded.name.split(".")[-1]
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(uploaded.getbuffer())
+            file_path = tmp.name
 
+        progress = st.progress(0)
+        status = st.empty()
 
-# # -----------------------------
-# # Config
-# # -----------------------------
-# APP_TITLE = "AI Financial Report Analyzer (Single-file RAG)"
-# DEFAULT_EMBED_MODEL = "all-MiniLM-L6-v2"
-# CHUNK_WORDS = 350         # chunk size in words (simple + fast)
-# CHUNK_OVERLAP = 80        # overlap in words
-# TOP_K_RETRIEVE = 6        # retrieve this many chunks
-# TOP_K_CONTEXT = 4         # send this many chunks to the LLM
-# MAX_CHARS_PER_CHUNK_IN_PROMPT = 1200  # truncate chunks in prompt to control tokens
+        status.text("📄 Extracting text...")
+        progress.progress(10)
+        if suffix == ".pdf":
+            pages = extract_pdf_pages(file_path)
+        else:
+            pages = extract_txt(file_path)
 
+        status.text("✂️ Chunking document...")
+        progress.progress(30)
+        chunks = chunk_pages(pages, uploaded.name)
 
-# # -----------------------------
-# # Data structures
-# # -----------------------------
-# @dataclass
-# class Chunk:
-#     doc_id: str
-#     page: int
-#     chunk_id: str
-#     text: str
+        status.text("🧠 Generating embeddings...")
+        progress.progress(55)
+        embedder = load_embedder()
+        embeddings = embed_texts(embedder, [c["text"] for c in chunks])
 
+        status.text("🗂️ Building FAISS index...")
+        progress.progress(75)
+        index = build_faiss_index(embeddings)
 
-# # -----------------------------
-# # Helpers: extraction
-# # -----------------------------
-# def extract_txt(file_path: str) -> List[Dict[str, Any]]:
-#     with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-#         text = f.read()
-#     return [{"page": 1, "text": text}]
+        status.text("📝 Generating summary...")
+        progress.progress(85)
+        all_text = " ".join([c["text"] for c in chunks[:20]])
+        summary = generate_summary(all_text)
+        sentiment = generate_sentiment(all_text)
 
+        st.session_state["chunks"] = chunks
+        st.session_state["index"] = index
+        st.session_state["embedder"] = embedder
+        st.session_state["indexed"] = True
+        st.session_state["chat_history"] = []
+        st.session_state["summary"] = summary
+        st.session_state["sentiment"] = sentiment
+        st.session_state["doc_stats"] = {
+            "name": uploaded.name,
+            "pages": len(pages),
+            "chunks": len(chunks),
+            "words": sum(len(c["text"].split()) for c in chunks),
+        }
 
-# def extract_pdf_pages(file_path: str) -> List[Dict[str, Any]]:
-#     if fitz is None:
-#         raise RuntimeError("PyMuPDF (fitz) is not installed. Install with: pip install pymupdf")
+        progress.progress(100)
+        status.text("✅ Done!")
+        st.success("Document indexed successfully!")
 
-#     doc = fitz.open(file_path)
-#     pages = []
-#     for i, page in enumerate(doc):
-#         txt = page.get_text("text") or ""
-#         pages.append({"page": i + 1, "text": txt})
-#     return pages
+    if st.session_state.indexed:
+        st.markdown("---")
+        st.markdown("### 📁 Document")
+        stats = st.session_state.doc_stats
+        st.markdown(f"**{stats['name']}**")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown(f"<div class='stat-card'><div class='stat-num'>{stats['pages']}</div><div class='stat-label'>Pages</div></div>", unsafe_allow_html=True)
+        with col2:
+            st.markdown(f"<div class='stat-card'><div class='stat-num'>{stats['chunks']}</div><div class='stat-label'>Chunks</div></div>", unsafe_allow_html=True)
 
+        st.markdown("---")
+        if st.button("🗑️ Clear Chat", use_container_width=True):
+            st.session_state.chat_history = []
+            st.rerun()
 
-# def clean_text(s: str) -> str:
-#     s = s.replace("\x00", " ")
-#     s = re.sub(r"[ \t]+", " ", s)
-#     s = re.sub(r"\n{3,}", "\n\n", s)
-#     return s.strip()
+st.title("📊 AI Financial Report Analyzer")
+st.markdown("*Upload a 10-K filing or earnings transcript and ask questions about it.*")
 
+if not st.session_state.indexed:
+    st.info("👈 Upload a financial document in the sidebar to get started.")
+    st.markdown("""
+    ### What you can do:
+    - 📄 Upload **10-K filings**, earnings transcripts, or annual reports
+    - 💬 Ask natural language questions about the document
+    - 🔍 Get **citation-backed answers** from specific pages
+    - 📊 Auto-generated **document summary** and **sentiment analysis**
+    - ⚡ Use **quick question templates** for common financial queries
+    """)
+else:
+    tab1, tab2, tab3 = st.tabs(["💬 Chat", "📋 Summary", "📊 Sentiment"])
 
-# # -----------------------------
-# # Helpers: chunking
-# # -----------------------------
-# def chunk_words(text: str, chunk_size: int = CHUNK_WORDS, overlap: int = CHUNK_OVERLAP) -> List[str]:
-#     words = text.split()
-#     if not words:
-#         return []
+    with tab1:
+        st.markdown("### Quick Questions")
+        cols = st.columns(4)
+        for i, q in enumerate(QUICK_QUESTIONS):
+            with cols[i % 4]:
+                if st.button(q, key=f"quick_{i}", use_container_width=True):
+                    st.session_state["pending_question"] = q
 
-#     chunks = []
-#     i = 0
-#     step = max(1, chunk_size - overlap)
-#     while i < len(words):
-#         chunk = " ".join(words[i : i + chunk_size])
-#         if chunk.strip():
-#             chunks.append(chunk)
-#         i += step
-#     return chunks
+        st.markdown("---")
 
+        for msg in st.session_state.chat_history:
+            if msg["role"] == "user":
+                st.markdown(f"<div class='chat-message user-message'>🧑 <strong>You:</strong> {msg['content']}</div>", unsafe_allow_html=True)
+            else:
+                st.markdown(f"<div class='chat-message assistant-message'>🤖 <strong>Assistant:</strong> {msg['content']}</div>", unsafe_allow_html=True)
+                if "sources" in msg:
+                    st.markdown("**Sources:**")
+                    for s in msg["sources"]:
+                        st.markdown(f"<span class='source-badge'>📄 {s['doc_id']} — Page {s['page']}</span>", unsafe_allow_html=True)
+                    with st.expander("View retrieved evidence"):
+                        for s in msg["sources"]:
+                            st.markdown(f"**[{s['doc_id']} — Page {s['page']}]**")
+                            st.markdown(s["text"][:600] + "...")
+                            st.markdown("---")
 
-# def chunk_pages(pages: List[Dict[str, Any]], doc_id: str) -> List[Chunk]:
-#     out: List[Chunk] = []
-#     for p in pages:
-#         page_num = int(p.get("page", 1))
-#         text = clean_text(p.get("text", ""))
-#         for idx, c in enumerate(chunk_words(text)):
-#             out.append(
-#                 Chunk(
-#                     doc_id=doc_id,
-#                     page=page_num,
-#                     chunk_id=f"{doc_id}_p{page_num}_c{idx}",
-#                     text=c,
-#                 )
-#             )
-#     return out
+        question = st.chat_input("Ask a question about the report...")
 
+        if "pending_question" in st.session_state:
+            question = st.session_state.pop("pending_question")
 
-# # -----------------------------
-# # Embeddings + FAISS
-# # -----------------------------
-# @st.cache_resource
-# def load_embedder(model_name: str = DEFAULT_EMBED_MODEL):
-#     if SentenceTransformer is None:
-#         raise RuntimeError("sentence-transformers is not installed. Install with: pip install sentence-transformers")
-#     return SentenceTransformer(model_name)
+        if question:
+            st.session_state.chat_history.append({"role": "user", "content": question})
+            with st.spinner("Retrieving relevant sections and generating answer..."):
+                retrieved = retrieve(
+                    question,
+                    st.session_state["embedder"],
+                    st.session_state["index"],
+                    st.session_state["chunks"]
+                )
+                answer = generate_answer(retrieved, question, st.session_state.chat_history)
+            st.session_state.chat_history.append({
+                "role": "assistant",
+                "content": answer,
+                "sources": retrieved
+            })
+            st.rerun()
 
+    with tab2:
+        st.markdown("### 📋 Document Summary")
+        if st.session_state.summary:
+            st.markdown(st.session_state.summary)
+        else:
+            st.info("Summary will appear after indexing a document.")
 
-# def embed_texts(embedder, texts: List[str]):
-#     if np is None:
-#         raise RuntimeError("numpy is not installed.")
-#     emb = embedder.encode(texts, show_progress_bar=False, convert_to_numpy=True)
-#     return emb.astype("float32")
-
-
-# def build_faiss_index(embeddings):
-#     if faiss is None:
-#         raise RuntimeError("faiss is not installed. Install with: pip install faiss-cpu")
-#     dim = embeddings.shape[1]
-#     index = faiss.IndexFlatIP(dim)  # cosine similarity after L2-normalization
-#     faiss.normalize_L2(embeddings)
-#     index.add(embeddings)
-#     return index
-
-
-# def retrieve_chunks(embedder, index, chunks: List[Chunk], query: str, top_k: int = TOP_K_RETRIEVE) -> List[Tuple[float, Chunk]]:
-#     q_emb = embed_texts(embedder, [query])
-#     faiss.normalize_L2(q_emb)
-#     D, I = index.search(q_emb, top_k)
-#     results: List[Tuple[float, Chunk]] = []
-#     for score, idx in zip(D[0], I[0]):
-#         if idx < 0:
-#             continue
-#         results.append((float(score), chunks[int(idx)]))
-#     return results
-
-
-# # -----------------------------
-# # LLM (OpenAI) - optional
-# # Supports both new and legacy OpenAI SDKs.
-# # -----------------------------
-# def openai_answer(question: str, context_items: List[Tuple[float, Chunk]]) -> str:
-#     api_key = os.getenv("OPENAI_API_KEY", "").strip()
-#     if not api_key:
-#         raise RuntimeError("OPENAI_API_KEY is not set.")
-
-#     context_blocks = []
-#     for score, c in context_items:
-#         snippet = c.text[:MAX_CHARS_PER_CHUNK_IN_PROMPT]
-#         context_blocks.append(f"[{c.doc_id}:{c.page}] {snippet}")
-
-#     system = (
-#         "You are a careful financial analyst assistant.\n"
-#         "Use ONLY the provided CONTEXT to answer.\n"
-#         "If the answer isn't in the context, say: 'Not available in provided document.'\n"
-#         "Always cite sources inline like [doc:page].\n"
-#         "Keep the answer concise.\n"
-#     )
-#     user = "CONTEXT:\n" + "\n\n".join(context_blocks) + f"\n\nQUESTION: {question}"
-
-#     # Try new SDK first
-#     try:
-#         from openai import OpenAI
-#         client = OpenAI(api_key=api_key)
-#         resp = client.chat.completions.create(
-#             model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-#             messages=[
-#                 {"role": "system", "content": system},
-#                 {"role": "user", "content": user},
-#             ],
-#             temperature=0.1,
-#             max_tokens=450,
-#         )
-#         return resp.choices[0].message.content
-#     except Exception:
-#         pass
-
-#     # Fallback: legacy SDK
-#     try:
-#         import openai
-#         openai.api_key = api_key
-#         resp = openai.ChatCompletion.create(
-#             model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-#             messages=[
-#                 {"role": "system", "content": system},
-#                 {"role": "user", "content": user},
-#             ],
-#             temperature=0.1,
-#             max_tokens=450,
-#         )
-#         return resp["choices"][0]["message"]["content"]
-#     except Exception as e:
-#         raise RuntimeError(f"OpenAI call failed: {e}")
-
-
-# # -----------------------------
-# # Streamlit UI
-# # -----------------------------
-# st.set_page_config(page_title=APP_TITLE, layout="wide")
-# st.title(APP_TITLE)
-
-# with st.expander("Setup / Requirements", expanded=False):
-#     st.markdown( """
-# **Install dependencies:**
-# ```bash
-# pip install streamlit pymupdf sentence-transformers faiss-cpu numpy openai""")
-
+    with tab3:
+        st.markdown("### 📊 Sentiment Analysis")
+        if st.session_state.sentiment:
+            st.markdown(st.session_state.sentiment)
+        else:
+            st.info("Sentiment analysis will appear after indexing a document.")

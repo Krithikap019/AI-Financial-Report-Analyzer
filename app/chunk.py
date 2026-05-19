@@ -8,7 +8,6 @@ def chunk_text(text, chunk_size=400, overlap=100):
         i += chunk_size - overlap
     return chunks
 
-
 def chunk_pages(pages, doc_id):
     all_chunks = []
     for page in pages:
@@ -17,6 +16,7 @@ def chunk_pages(pages, doc_id):
             all_chunks.append({
                 "doc_id": doc_id,
                 "page": page["page"],
+                "chunk_idx": idx,
                 "text": c
             })
     return all_chunks
