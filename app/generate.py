@@ -1,17 +1,23 @@
 import os
-from openai import OpenAI
+from groq import Groq
 from prompts import build_prompt, build_summary_prompt, build_sentiment_prompt
 
 def get_client():
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        try:
+            import streamlit as st
+            api_key = st.secrets.get("GROQ_API_KEY")
+        except:
+            pass
     if not api_key:
         return None
-    return OpenAI(api_key=api_key)
+    return Groq(api_key=api_key)
 
 def generate_answer(chunks, question, chat_history=None):
     client = get_client()
     if not client:
-        return "⚠️ OPENAI_API_KEY not set. Showing retrieved chunks only."
+        return "⚠️ GROQ_API_KEY not set. Showing retrieved chunks only."
 
     prompt = build_prompt(chunks, question)
     messages = [{"role": "system", "content": "You are a financial analyst assistant. Answer only from the provided context. Always cite sources like [doc page X]. Be concise and precise."}]
@@ -24,7 +30,7 @@ def generate_answer(chunks, question, chat_history=None):
     messages.append({"role": "user", "content": prompt})
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="llama-3.3-70b-versatile",
         messages=messages,
         temperature=0.1,
     )
@@ -33,11 +39,11 @@ def generate_answer(chunks, question, chat_history=None):
 def generate_summary(text):
     client = get_client()
     if not client:
-        return "⚠️ OPENAI_API_KEY not set."
+        return "⚠️ GROQ_API_KEY not set."
 
     prompt = build_summary_prompt(text[:6000])
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="llama-3.3-70b-versatile",
         messages=[
             {"role": "system", "content": "You are a financial analyst. Summarize the document clearly and concisely."},
             {"role": "user", "content": prompt}
@@ -49,11 +55,11 @@ def generate_summary(text):
 def generate_sentiment(text):
     client = get_client()
     if not client:
-        return "⚠️ OPENAI_API_KEY not set."
+        return "⚠️ GROQ_API_KEY not set."
 
     prompt = build_sentiment_prompt(text[:6000])
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="llama-3.3-70b-versatile",
         messages=[
             {"role": "system", "content": "You are a financial sentiment analyst."},
             {"role": "user", "content": prompt}

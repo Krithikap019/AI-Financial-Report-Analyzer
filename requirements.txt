@@ -1,5 +1,6 @@
 streamlit
 pymupdf
+groq
 sentence-transformers
 faiss-cpu
 openai
